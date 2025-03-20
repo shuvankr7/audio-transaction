@@ -60,7 +60,7 @@ import wave
 import io
 from langchain_groq import ChatGroq
 import time
-
+import whisper
 st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
 
 # Set environment variables before imports
@@ -79,7 +79,7 @@ DEFAULT_MAX_TOKENS = 1024
 def load_whisper_model():
     try:
         # Use OpenAI's Whisper package correctly
-        import openai.whisper as whisper
+        
         return whisper.load_model("base")
     except ImportError:
         st.error("OpenAI Whisper module not found. Please install with: pip install openai-whisper")
