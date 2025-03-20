@@ -3,8 +3,5 @@ sounddevice
 numpy
 scipy
 wave
-io
 whisper
-tempfile
-os-sys
 langchain_groq
