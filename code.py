@@ -4,14 +4,14 @@ import os
 import numpy as np
 import wave
 import time
-
+from langchain_groq import ChatGroq
+import whisper
 # Set environment variables before imports
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Import LangChain after environment variables are set
-from langchain_groq import ChatGroq
 
 # Default Groq API key (Ensure this is kept secure)
 GROQ_API_KEY = "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"
@@ -23,7 +23,7 @@ DEFAULT_MAX_TOKENS = 1024
 @st.cache_resource
 def load_whisper_model():
     try:
-        import whisper
+
         return whisper.load_model("base")
     except ImportError:
         st.error(" Whisper module not found. Please ensure it's installed correctly.")
