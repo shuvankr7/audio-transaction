@@ -1,12 +1,14 @@
-import streamlit as st
+import streamlit as st 
 import torch
 import os
-import sounddevice as sd
 import wave
 import io
 import whisper
 import time
 from langchain_groq import ChatGroq
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+import av
+import numpy as np
 
 # Set environment variables
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
@@ -43,46 +45,18 @@ def initialize_rag_system():
         st.error(f"Error initializing RAG system: {e}")
         return None
 
-# Record Audio
-def record_audio(duration=5, samplerate=44100):
-    st.write("Recording... Speak now!")
-    try:
-        audio_data = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=2, dtype='int16')
-        sd.wait()
-        
-        audio_buffer = io.BytesIO()
-        with wave.open(audio_buffer, "wb") as wf:
-            wf.setnchannels(2)
-            wf.setsampwidth(2)
-            wf.setframerate(samplerate)
-            wf.writeframes(audio_data.tobytes())
-        
-        return audio_buffer.getvalue()
-    except Exception as e:
-        st.error(f"Error recording audio: {e}")
-        return None
-
-# Process Transaction Message
-def process_transaction_message(message, llm):
-    if llm is None:
-        return "Error: RAG system is not initialized."
+# WebRTC Audio Processing
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.audio_buffer = io.BytesIO()
     
-    system_prompt = (
-        "Your input is a transaction message extracted from voice. Extract structured details likeAmount, Transaction Type, Bank Name, Card Type, paied to whom,marchent, Transaction Mode, Transaction Date, Reference Number, and tag."
-        "Tag meaning which category of spending, if amazon then shopping etc, if zomato then eating"
-        "Just give the json output, Don't say anything else , if there is no output then don't predict, say it is null"
-        "If mode of payment is not mentioned, assume cash by default. "
-        "If any field is missing, set it as null. "
-        "Return only a JSON or a list of JSON objects."
-        "as human giving input ,so input can be of few worlds and less structured gramatically and simple"
-        "example 1: today I spent 500 at dominoze,you need to handle it carefully"
-        "IF USER GIVES MULTIPLE ITEMS CORROSPONDING TO MULTIPLE PRICES THEN GENERATE LIST OF JESON CORROSPONDINGLY"
-    )
-
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        audio_data = frame.to_ndarray()
+        self.audio_buffer.write(audio_data.tobytes())
+        return frame
     
-    input_prompt = f"{system_prompt}\nMessage: {message}"
-    response = llm.invoke(input_prompt)
-    return response.content if hasattr(response, 'content') else response
+    def get_audio_data(self):
+        return self.audio_buffer.getvalue()
 
 # Streamlit UI
 st.title("Voice-Based Transaction Analyzer")
@@ -97,28 +71,37 @@ if "editing_done" not in st.session_state:
 if "final_output" not in st.session_state:
     st.session_state.final_output = None  # Store final extracted JSON
 
-if st.button("Start Recording"):
-    audio_data = record_audio(duration)
-    if audio_data:
-        st.success("Recording complete!")
-        
-        temp_file_path = "temp_audio.wav"
-        with open(temp_file_path, "wb") as f:
-            f.write(audio_data)
+# WebRTC for voice recording
+st.write("Press Start to record your voice.")
+audio_processor = AudioProcessor()
+webrtc_ctx = webrtc_streamer(
+    key="speech_recorder",
+    mode=WebRtcMode.SENDONLY,
+    audio_processor_factory=lambda: audio_processor,
+    media_stream_constraints={"audio": True, "video": False},
+)
 
-        st.write("Transcribing audio...")
-        whisper_model = load_whisper_model()
+if webrtc_ctx.audio_receiver:
+    st.success("Recording complete!")
+    audio_data = audio_processor.get_audio_data()
+    
+    temp_file_path = "temp_audio.wav"
+    with open(temp_file_path, "wb") as f:
+        f.write(audio_data)
+
+    st.write("Transcribing audio...")
+    whisper_model = load_whisper_model()
+    
+    if whisper_model:
+        result = whisper_model.transcribe(temp_file_path)
+        st.session_state.transcription = result.get("text", "").strip()
+        st.session_state.editing_done = False  # Reset editing state
+        st.session_state.final_output = None  # Reset final output
         
-        if whisper_model:
-            result = whisper_model.transcribe(temp_file_path)
-            st.session_state.transcription = result.get("text", "").strip()
-            st.session_state.editing_done = False  # Reset editing state
-            st.session_state.final_output = None  # Reset final output
-            
-            if not st.session_state.transcription:
-                st.error("No transcription output.")
-        else:
-            st.error("Whisper model failed to load.")
+        if not st.session_state.transcription:
+            st.error("No transcription output.")
+    else:
+        st.error("Whisper model failed to load.")
 
 # If transcription exists, show editing area
 if st.session_state.transcription:
