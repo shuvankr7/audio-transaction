@@ -68,11 +68,15 @@ def process_transaction_message(message, llm):
         return "Error: RAG system is not initialized."
     
     system_prompt = (
-        "Your input is a transaction message extracted from voice. Extract structured details like Amount, Transaction Type, Bank Name, Card Type, Paid To, Merchant, "
-        "Transaction Mode, Transaction Date, Reference Number, and Category Tag. "
+        "Your input is a transaction message extracted from voice. Extract structured details likeAmount, Transaction Type, Bank Name, Card Type, paied to whom,marchent, Transaction Mode, Transaction Date, Reference Number, and tag."
+        "Tag meaning which category of spending, if amazon then shopping etc, if zomato then eating"
+        "Just give the json output, Don't say anything else , if there is no output then don't predict, say it is null"
         "If mode of payment is not mentioned, assume cash by default. "
-        "Return only a JSON object. "
-        "Example: '100 on KFC' -> {\"Amount\": 100, \"Merchant\": \"KFC\", \"Transaction Mode\": \"Cash\"}"
+        "If any field is missing, set it as null. "
+        "Return only a JSON or a list of JSON objects."
+        "as human giving input ,so input can be of few worlds and less structured gramatically and simple"
+        "example 1: today I spent 500 at dominoze,you need to handle it carefully"
+        "IF USER GIVES MULTIPLE ITEMS CORROSPONDING TO MULTIPLE PRICES THEN GENERATE LIST OF JESON CORROSPONDINGLY"
     )
     
     input_prompt = f"{system_prompt}\nMessage: {message}"
