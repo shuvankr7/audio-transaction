@@ -6,3 +6,4 @@ numpy
 langchain
 langchain_groq
 whisper
+uvicorn
