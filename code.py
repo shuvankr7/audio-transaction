@@ -80,13 +80,13 @@ DEFAULT_MAX_TOKENS = 1024
 @st.cache_resource
 def load_whisper_model():
     try:
-
+        import whisper
         return whisper.load_model("base")
     except ImportError:
-        st.error("Whisper module not found. Please ensure it's installed correctly.")
+        st.error(" Whisper module not found. Please ensure it's installed correctly.")
         st.stop()
     except Exception as e:
-        st.error(f"Error loading Whisper model: {str(e)}")
+        st.error(f" Error loading Whisper model: {str(e)}")
         st.stop()
 
 # Initialize RAG system internally
@@ -99,7 +99,7 @@ def initialize_rag_system():
             max_tokens=DEFAULT_MAX_TOKENS
         )
     except Exception as e:
-        st.error(f"Error initializing RAG system: {str(e)}")
+        st.error(f" Error initializing RAG system: {str(e)}")
         return None
 
 # Load models on startup
