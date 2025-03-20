@@ -60,6 +60,8 @@ import wave
 import io
 from langchain_groq import ChatGroq
 import time
+import whisper
+
 
 st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
 
@@ -78,7 +80,7 @@ DEFAULT_MAX_TOKENS = 1024
 @st.cache_resource
 def load_whisper_model():
     try:
-        import whisper
+
         return whisper.load_model("base")
     except ImportError:
         st.error("Whisper module not found. Please ensure it's installed correctly.")
