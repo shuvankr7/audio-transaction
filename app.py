@@ -1,11 +1,9 @@
 import streamlit as st
-import torch
 import os
-import sounddevice as sd
-import wave
-import io
 import whisper
 import time
+import tempfile
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from langchain_groq import ChatGroq
 
 # Set environment variables
@@ -43,40 +41,19 @@ def initialize_rag_system():
         st.error(f"Error initializing RAG system: {e}")
         return None
 
-# Record Audio
-def record_audio(duration=5, samplerate=44100):
-    st.write("Recording... Speak now!")
-    try:
-        audio_data = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=2, dtype='int16')
-        sd.wait()
-        
-        audio_buffer = io.BytesIO()
-        with wave.open(audio_buffer, "wb") as wf:
-            wf.setnchannels(2)
-            wf.setsampwidth(2)
-            wf.setframerate(samplerate)
-            wf.writeframes(audio_data.tobytes())
-        
-        return audio_buffer.getvalue()
-    except Exception as e:
-        st.error(f"Error recording audio: {e}")
-        return None
-
 # Process Transaction Message
 def process_transaction_message(message, llm):
     if llm is None:
         return "Error: RAG system is not initialized."
     
     system_prompt = (
-        "Your input is a transaction message extracted from voice. Extract structured details likeAmount, Transaction Type, Bank Name, Card Type, paied to whom,marchent, Transaction Mode, Transaction Date, Reference Number, and tag."
-        "Tag meaning which category of spending, if amazon then shopping etc, if zomato then eating"
-        "Just give the json output, Don't say anything else , if there is no output then don't predict, say it is null"
-        "If mode of payment is not mentioned, assume cash by default. "
-        "If any field is missing, set it as null. "
-        "Return only a JSON or a list of JSON objects."
-        "as human giving input ,so input can be of few worlds and less structured gramatically and simple"
-        "example 1: today I spent 500 at dominoze,you need to handle it carefully"
-        "IF USER GIVES MULTIPLE ITEMS CORROSPONDING TO MULTIPLE PRICES THEN GENERATE LIST OF JESON CORROSPONDINGLY"
+        "Your input is a transaction message extracted from voice. Extract structured details like Amount, "
+        "Transaction Type, Bank Name, Card Type, Paid to whom, Merchant, Transaction Mode, Transaction Date, "
+        "Reference Number, and Category Tag."
+        "Category Tag means spending category: if Amazon then Shopping, if Zomato then Eating, etc."
+        "Return JSON output only. If the mode of payment is not mentioned, assume cash by default."
+        "If any field is missing, set it as null."
+        "Example: 'I spent 500 at Domino’s' should be parsed correctly."
     )
     
     input_prompt = f"{system_prompt}\nMessage: {message}"
@@ -84,70 +61,60 @@ def process_transaction_message(message, llm):
     return response.content if hasattr(response, 'content') else response
 
 # Streamlit UI
-st.title("Voice-Based Transaction Analyzer")
-st.sidebar.header("Settings")
-duration = st.sidebar.slider("Recording Duration (seconds)", 3, 10, 5)
+st.title("🎙️ Voice-Based Transaction Analyzer")
 
-# Initialize session state for transcription and timer
-if "transcription" not in st.session_state:
-    st.session_state.transcription = ""
-if "editing_done" not in st.session_state:
-    st.session_state.editing_done = False
-if "final_output" not in st.session_state:
-    st.session_state.final_output = None  # Store final extracted JSON
+# WebRTC Audio Recorder
+st.subheader("Record Your Transaction")
+webrtc_ctx = webrtc_streamer(
+    key="record-audio",
+    mode=WebRtcMode.SENDRECV,
+    audio_receiver_size=256,
+    media_stream_constraints={"video": False, "audio": True},
+)
 
-if st.button("Start Recording"):
-    audio_data = record_audio(duration)
-    if audio_data:
-        st.success("Recording complete!")
-        
-        temp_file_path = "temp_audio.wav"
-        with open(temp_file_path, "wb") as f:
-            f.write(audio_data)
+# When recording stops
+if st.button("Stop Recording"):
+    if webrtc_ctx.audio_receiver:
+        audio_frames = webrtc_ctx.audio_receiver.get_frames()
+        if audio_frames:
+            st.success("Recording complete!")
 
-        st.write("Transcribing audio...")
-        whisper_model = load_whisper_model()
-        
-        if whisper_model:
-            result = whisper_model.transcribe(temp_file_path)
-            st.session_state.transcription = result.get("text", "").strip()
-            st.session_state.editing_done = False  # Reset editing state
-            st.session_state.final_output = None  # Reset final output
+            # Save the recorded audio
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
+                tmpfile.write(b"".join(audio_frames[0].to_ndarray().tobytes()))
+                temp_audio_path = tmpfile.name
             
-            if not st.session_state.transcription:
-                st.error("No transcription output.")
+            st.write("Transcribing audio...")
+            whisper_model = load_whisper_model()
+
+            if whisper_model:
+                result = whisper_model.transcribe(temp_audio_path)
+                transcription = result.get("text", "").strip()
+
+                if transcription:
+                    st.subheader("Transcription (Edit if needed)")
+                    edited_text = st.text_area("Edit before processing:", transcription)
+                    
+                    # Auto-submit countdown (7s)
+                    countdown = st.empty()
+                    start_time = time.time()
+                    while time.time() - start_time < 7:
+                        countdown.markdown(f"**Auto-submitting in {7 - int(time.time() - start_time)} seconds...**")
+                        time.sleep(1)
+                    
+                    # Submit to Groq
+                    st.subheader("Processing...")
+                    rag_llm = initialize_rag_system()
+                    processed_result = process_transaction_message(edited_text, rag_llm)
+
+                    # Show final result
+                    st.subheader("Extracted Transaction Details")
+                    st.json(processed_result)
+                else:
+                    st.error("No transcription output.")
+            else:
+                st.error("Whisper model failed to load.")
         else:
-            st.error("Whisper model failed to load.")
-
-# If transcription exists, show editing area
-if st.session_state.transcription:
-    st.subheader("Transcription")
-    text_input = st.text_area("Edit the transcription if needed", value=st.session_state.transcription, key="edited_text")
-
-    # Dynamic countdown timer
-    countdown_placeholder = st.empty()
-    go_pressed = st.button("Go")
-
-    if not st.session_state.editing_done:
-        for i in range(7, -1, -1):  # Countdown from 7 to 0
-            countdown_placeholder.write(f"**Auto-submitting in {i} seconds...**")
-            time.sleep(1)
-            if go_pressed:
-                break  # Stop countdown if "Go" is pressed
-
-        st.session_state.editing_done = True  # Mark editing as done
-
-    final_text = st.session_state.edited_text
-    st.write(f"Final Input: {final_text}")
-
-    # Show "Loading..." before processing
-    with st.status("Processing transaction details...", expanded=True) as status:
-        rag_llm = initialize_rag_system()
-        processed_result = process_transaction_message(final_text, rag_llm)
-        st.session_state.final_output = processed_result  # Store result in session
-        status.update(label="Processing complete!", state="complete", expanded=False)
-
-# Display the final extracted transaction details
-if st.session_state.final_output:
-    st.subheader("Extracted Transaction Details")
-    st.json(st.session_state.final_output)
+            st.error("No audio recorded.")
+    else:
+        st.error("No audio receiver detected.")
