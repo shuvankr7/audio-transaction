@@ -50,53 +50,51 @@
 
 
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
-import av
+import sounddevice as sd
 import numpy as np
-import wave
-import os
+import wavio as wv
+import tempfile
 
-st.title("🎙 Live Audio Recorder")
+def record_audio(duration, fs=44100):
+    """Records audio from the microphone."""
+    try:
+        recording = sd.rec(int(duration * fs), samplerate=fs, channels=1)
+        sd.wait()  # Wait until recording is finished
+        return recording, fs
+    except sd.PortAudioError as e:
+        st.error(f"PortAudio error: {e}")
+        return None, None
 
-# Custom Audio Processor to Store Audio Frames
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self) -> None:
-        self.audio_frames = []
-        self.sample_rate = 44100  # Standard audio sample rate
+def save_audio(recording, fs, filename):
+    """Saves the recorded audio to a WAV file."""
+    wv.write(filename, recording, fs)
 
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        audio_data = frame.to_ndarray()
-        self.audio_frames.append(audio_data)
-        return frame
+def main():
+    st.title("Audio Recorder")
 
-# Initialize WebRTC Audio Streamer
-webrtc_ctx = webrtc_streamer(
-    key="audio_recorder",
-    mode=WebRtcMode.SENDRECV,
-    media_stream_constraints={"video": False, "audio": True},
-    async_processing=True,
-    audio_processor_factory=AudioProcessor,
-)
+    duration = st.slider("Recording Duration (seconds)", 1, 10, 5)
 
-# Stop & Save Button
-if st.button("Stop and Save Recording"):
-    if webrtc_ctx and webrtc_ctx.audio_processor and webrtc_ctx.audio_processor.audio_frames:
-        audio_data = np.concatenate(webrtc_ctx.audio_processor.audio_frames, axis=0)
+    if st.button("Start Recording"):
+        recording, fs = record_audio(duration)
+        if recording is not None:
+            st.success("Recording complete!")
 
-        # Save the recorded audio as a WAV file
-        output_filename = "recorded_audio.wav"
-        with wave.open(output_filename, "wb") as wf:
-            wf.setnchannels(1)  # Mono audio
-            wf.setsampwidth(2)  # 16-bit PCM format
-            wf.setframerate(44100)  # 44.1 kHz sample rate
-            wf.writeframes(audio_data.astype(np.int16).tobytes())
+            # Create a temporary file to save the audio
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+                temp_filename = temp_audio.name
+                save_audio(recording, fs, temp_filename)
 
-        st.success(f"✅ Audio saved successfully as '{output_filename}'")
-        st.audio(output_filename, format="audio/wav")  # Play saved audio
-    else:
-        st.warning("⚠️ No audio recorded! Please try again.")
+            # Display audio player and download button
+            st.audio(temp_filename, format="audio/wav")
+            with open(temp_filename, "rb") as f:
+                st.download_button(
+                    label="Download Recording",
+                    data=f,
+                    file_name="recorded_audio.wav",
+                    mime="audio/wav",
+                )
+        else:
+            st.error("Recording failed.")
 
-# Debugging: Show message if WebRTC is not initialized
-if webrtc_ctx is None:
-    st.error("❌ WebRTC initialization failed! Try reloading the app.")
-
+if __name__ == "__main__":
+    main()
