@@ -3,4 +3,4 @@ transformers
 torch
 torchaudio
 langchain_groq
-
+whisper
