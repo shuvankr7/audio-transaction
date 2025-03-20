@@ -85,16 +85,16 @@ if webrtc_ctx and webrtc_ctx.audio_receiver:
     if st.button("Process Recording"):
         st.write("Processing Audio...")
         
-        # Convert audio frames to raw PCM data
-        pcm_audio = b"".join(frame.to_ndarray(format="s16").tobytes() for frame in audio_frames)
-        
-        # Save as WAV file
+        # Convert audio frames to WAV format
         temp_file_path = "temp_audio.wav"
         with wave.open(temp_file_path, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)  # 16-bit audio
             wf.setframerate(16000)  # Common speech rate
-            wf.writeframes(pcm_audio)
+            
+            for frame in audio_frames:
+                audio_data = frame.to_ndarray(format="s16").tobytes()
+                wf.writeframes(audio_data)
         
         whisper_model = load_whisper_model()
         if whisper_model:
