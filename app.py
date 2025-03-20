@@ -15,7 +15,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # API Key and Model Config
-GROQ_API_KEY = "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"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 DEFAULT_MODEL = "llama3-70b-8192"
 DEFAULT_TEMPERATURE = 0.5
 DEFAULT_MAX_TOKENS = 1024
@@ -80,33 +80,36 @@ webrtc_ctx = webrtc_streamer(
 
 if webrtc_ctx and webrtc_ctx.audio_receiver:
     st.write("Listening... Speak now!")
-    audio_frames = webrtc_ctx.audio_receiver.get_frames()
     
+    # Process Recording
     if st.button("Process Recording"):
         st.write("Processing Audio...")
         
         # Convert audio frames to WAV format
         temp_file_path = "temp_audio.wav"
-        with wave.open(temp_file_path, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)  # 16-bit audio
-            wf.setframerate(16000)  # Common speech rate
+        try:
+            with wave.open(temp_file_path, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)  # 16-bit audio
+                wf.setframerate(16000)  # Common speech rate
+                
+                for frame in webrtc_ctx.audio_receiver.get_frames():
+                    audio_data = frame.to_ndarray(format="s16").tobytes()
+                    wf.writeframes(audio_data)
             
-            for frame in audio_frames:
-                audio_data = frame.to_ndarray(format="s16").tobytes()
-                wf.writeframes(audio_data)
-        
-        whisper_model = load_whisper_model()
-        if whisper_model:
-            result = whisper_model.transcribe(temp_file_path)
-            transcription = result.get("text", "").strip()
-            
-            if transcription:
-                st.session_state.transcription = transcription
+            whisper_model = load_whisper_model()
+            if whisper_model:
+                result = whisper_model.transcribe(temp_file_path)
+                transcription = result.get("text", "").strip()
+                
+                if transcription:
+                    st.session_state.transcription = transcription
+                else:
+                    st.error("No transcription output.")
             else:
-                st.error("No transcription output.")
-        else:
-            st.error("Whisper model failed to load.")
+                st.error("Whisper model failed to load.")
+        except Exception as e:
+            st.error(f"Error processing audio: {e}")
 
 # Display transcription and allow edits
 if "transcription" in st.session_state:
