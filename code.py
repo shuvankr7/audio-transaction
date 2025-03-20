@@ -49,47 +49,91 @@
 #     st.audio("recorded_audio.wav", format="audio/wav")
 
 
-
-
 import streamlit as st
-import streamlit_webrtc as webrtc
-import whisper
-import av  # Required by streamlit-webrtc
+import pyaudio
+import wave
+import numpy as np
+import os
 
-def transcribe_audio(audio_bytes):
-    """Transcribes audio using OpenAI Whisper."""
-    with open("temp_audio.wav", "wb") as f:
-        f.write(audio_bytes)
-    model = whisper.load_model("base")
-    result = model.transcribe("temp_audio.wav")
-    return result["text"]
+# Audio recording parameters
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 1
+RATE = 44100
+OUTPUT_FILENAME = "recorded_audio.wav"
+
+def record_audio(duration):
+    # Initialize PyAudio
+    p = pyaudio.PyAudio()
+    
+    # Open stream
+    stream = p.open(format=FORMAT,
+                   channels=CHANNELS,
+                   rate=RATE,
+                   input=True,
+                   frames_per_buffer=CHUNK)
+    
+    st.write("Recording...")
+    frames = []
+    
+    # Record for specified duration
+    for i in range(0, int(RATE / CHUNK * duration)):
+        data = stream.read(CHUNK)
+        frames.append(data)
+    
+    # Stop and close the stream
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+    
+    # Save the recorded audio
+    wf = wave.open(OUTPUT_FILENAME, 'wb')
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(p.get_sample_size(FORMAT))
+    wf.setframerate(RATE)
+    wf.writeframes(b''.join(frames))
+    wf.close()
+    
+    return OUTPUT_FILENAME
 
 def main():
-    st.title("Live Audio Recording and Transcription")
-
-    webrtc_streamer = webrtc.webrtc_streamer(
-        key="audio-recorder",
-        mode=webrtc.WebRtcMode.SENDRECV,
-        audio_receiver_size=1024,  # Adjust buffer size as needed
-        media_stream_constraints={"audio": True, "video": False},
-    )
-
-    if webrtc_streamer.audio_receiver:
-        try:
-            audio_frames = webrtc_streamer.audio_receiver.get_frames()
-            if audio_frames:
-                audio_bytes = b"".join([frame.to_ndarray().tobytes() for frame in audio_frames])
-
-                # Transcribe the recorded audio
-                transcription = transcribe_audio(audio_bytes)
-                st.write("Transcription:")
-                st.write(transcription)
-
-        except av.error.BlockingIOError:
-            # Handle potential blocking errors
-            pass
-        except Exception as e:
-             st.error(f"Error: {e}")
+    st.title("Live Audio Recorder")
+    
+    # Recording duration input
+    duration = st.slider("Select recording duration (seconds)", 
+                        min_value=1, 
+                        max_value=30, 
+                        value=5)
+    
+    # Record button
+    if st.button("Start Recording"):
+        with st.spinner("Recording audio..."):
+            audio_file = record_audio(duration)
+        
+        st.success("Recording completed!")
+        
+        # Display audio player
+        audio_bytes = open(audio_file, 'rb').read()
+        st.audio(audio_bytes, format='audio/wav')
+        
+        # Download button
+        st.download_button(
+            label="Download Recording",
+            data=audio_bytes,
+            file_name=OUTPUT_FILENAME,
+            mime="audio/wav"
+        )
+    
+    # Instructions
+    st.write("""
+    Instructions:
+    1. Select desired recording duration using the slider
+    2. Click 'Start Recording' to begin
+    3. Speak into your microphone
+    4. Wait for recording to complete
+    5. Listen to your recording using the audio player
+    6. Download the recording if desired
+    """)
 
 if __name__ == "__main__":
     main()
