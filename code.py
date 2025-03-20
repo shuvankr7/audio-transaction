@@ -1,55 +1,57 @@
-import streamlit as st
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
+import streamlit as st
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import numpy as np
-import soundfile as sf
+import wave
 import os
 
+# Title
 st.title("🎙 Live Audio Recorder")
 
-# Ensure a directory exists for storing recordings
-SAVE_DIR = "recordings"
-os.makedirs(SAVE_DIR, exist_ok=True)
+# Function to process audio frames
+def audio_callback(frame: av.AudioFrame) -> av.AudioFrame:
+    audio = frame.to_ndarray()
+    return av.AudioFrame.from_ndarray(audio, format="s16")
 
-# WebRTC Configuration with STUN server for better connectivity
-RTC_CONFIG = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
-
-
-# Define the audio frame processor
-class AudioProcessor:
-    def __init__(self):
-        self.frames = []
-
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        audio_data = frame.to_ndarray()
-        self.frames.append(audio_data)
-        return frame
-
-
-# Create an instance of the processor
-audio_processor = AudioProcessor()
-
-
-# Function to process incoming audio
-def process_audio(frame: av.AudioFrame) -> av.AudioFrame:
-    return audio_processor.recv(frame)
-
-
-# Initialize WebRTC Streamer
+# WebRTC Streamer
 webrtc_ctx = webrtc_streamer(
-    key="audio_recorder",
+    key="audio",
     mode=WebRtcMode.SENDRECV,
-    rtc_configuration=RTC_CONFIG,
+    audio_receiver_size=256,  # Fixes 'No audio receiver available' issue
     media_stream_constraints={"video": False, "audio": True},
-    audio_frame_callback=process_audio,  # Fix: Using audio frame callback
+    async_processing=True,
 )
 
-# Save Recording Button
-if st.button("🛑 Stop and Save Recording"):
-    if audio_processor.frames:
-        audio_np = np.concatenate(audio_processor.frames, axis=0)
-        save_path = os.path.join(SAVE_DIR, "recorded_audio.wav")
-        sf.write(save_path, audio_np, samplerate=48000)
-        st.success(f"✅ Audio saved at: {save_path}")
+# Initialize session state for storing audio
+if "audio_data" not in st.session_state:
+    st.session_state["audio_data"] = []
+
+# Record Button
+if webrtc_ctx and webrtc_ctx.audio_receiver:
+    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+    for frame in audio_frames:
+        st.session_state["audio_data"].append(frame.to_ndarray())
+
+# Stop & Save Button
+if st.button("Stop and Save Recording"):
+    if len(st.session_state["audio_data"]) > 0:
+        audio_data = np.concatenate(st.session_state["audio_data"], axis=0)
+
+        # Save as a WAV file
+        output_filename = "recorded_audio.wav"
+        with wave.open(output_filename, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)  # 16-bit PCM
+            wf.setframerate(44100)
+            wf.writeframes(audio_data.tobytes())
+
+        st.success(f"✅ Audio saved as {output_filename}")
+
+        # Clear recorded audio data
+        st.session_state["audio_data"] = []
     else:
         st.warning("⚠️ No audio recorded!")
+
+# Play the saved audio file if exists
+if os.path.exists("recorded_audio.wav"):
+    st.audio("recorded_audio.wav", format="audio/wav")
