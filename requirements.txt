@@ -3,7 +3,6 @@ torch
 sounddevice
 wave
 numpy
-io
 langchain
 langchain_groq
 whisper
