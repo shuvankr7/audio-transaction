@@ -1,17 +1,20 @@
 import streamlit as st
 import tempfile
 import os
-from langchain_groq import ChatGroq
-import time
 import numpy as np
 import wave
+import time
 
+# Set page config FIRST - before any other Streamlit commands
 st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
 
 # Set environment variables before imports
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Import LangChain after environment variables are set
+from langchain_groq import ChatGroq
 
 # Default Groq API key (Ensure this is kept secure)
 GROQ_API_KEY = "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"
