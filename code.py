@@ -1,55 +1,53 @@
+# Import required libraries first
 import streamlit as st
 import tempfile
 import os
 import numpy as np
-import wave
 import time
-from langchain_groq import ChatGroq
-import whisper
-# Set environment variables before imports
+
+# Make sure set_page_config is the first Streamlit command
+
+# Set environment variables
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# Import LangChain after environment variables are set
-
-# Default Groq API key (Ensure this is kept secure)
+# Constants
 GROQ_API_KEY = "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"
 DEFAULT_MODEL = "llama3-70b-8192"
 DEFAULT_TEMPERATURE = 0.5
 DEFAULT_MAX_TOKENS = 1024
 
-# Load whisper model at startup
-@st.cache_resource
+# Define functions for the app
 def load_whisper_model():
+    """Load the Whisper model with proper import handling"""
     try:
-
-        return whisper.load_model("base")
+        # Import inside function to avoid circular imports
+        import whisper
+        model = whisper.load_model("base")
+        return model, None
     except ImportError:
-        st.error(" Whisper module not found. Please ensure it's installed correctly.")
-        st.stop()
+        return None, "Whisper module not found. Please install it with 'pip install openai-whisper'"
     except Exception as e:
-        st.error(f" Error loading Whisper model: {str(e)}")
-        st.stop()
+        return None, f"Error loading Whisper model: {str(e)}"
 
-# Initialize RAG system internally
 def initialize_rag_system():
+    """Initialize the RAG system"""
     try:
-        return ChatGroq(
+        # Import inside function
+        from langchain_groq import ChatGroq
+        llm = ChatGroq(
             api_key=GROQ_API_KEY,
             model=DEFAULT_MODEL,
             temperature=DEFAULT_TEMPERATURE,
             max_tokens=DEFAULT_MAX_TOKENS
         )
+        return llm, None
     except Exception as e:
-        st.error(f" Error initializing RAG system: {str(e)}")
-        return None
-
-# Load models on startup
-whisper_model = load_whisper_model()
-rag_llm = initialize_rag_system()
+        return None, f"Error initializing RAG system: {str(e)}"
 
 def process_transaction_message(message, llm):
+    """Process transaction messages using LLM"""
     if llm is None:
         return "Error: RAG system is not initialized."
     system_prompt = (
@@ -67,77 +65,99 @@ def process_transaction_message(message, llm):
     response = llm.invoke(input_prompt)
     return response.content if hasattr(response, 'content') else response
 
-def save_audio_data(audio_data, sample_rate):
-    """Save audio data to a WAV file."""
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-        # Convert audio data to int16 format
-        audio_data_int = (audio_data * 32767).astype(np.int16)
-        
-        # Write to WAV file
-        with wave.open(tmp_file.name, 'wb') as wf:
-            wf.setnchannels(1)  # Mono
-            wf.setsampwidth(2)  # 16-bit
-            wf.setframerate(sample_rate)
-            wf.writeframes(audio_data_int.tobytes())
-        
-        return tmp_file.name
+def init_session_state():
+    """Initialize session state variables"""
+    if 'whisper_model' not in st.session_state:
+        st.session_state.whisper_model = None
+    if 'rag_llm' not in st.session_state:
+        st.session_state.rag_llm = None
 
-def main():
-    st.markdown("<h1 style='text-align: center;'>🔊 Audio Transaction Processor</h1>", unsafe_allow_html=True)
+# Initialize session state
+init_session_state()
+
+# Main app layout
+st.markdown("<h1 style='text-align: center;'>🔊 Audio Transaction Processor</h1>", unsafe_allow_html=True)
+st.markdown("---")
+
+# Sidebar for loading models
+with st.sidebar:
+    st.header("Model Configuration")
     
-    st.markdown("---")
+    if st.button("Load Whisper Model"):
+        with st.spinner("Loading Whisper model..."):
+            model, error = load_whisper_model()
+            if model:
+                st.session_state.whisper_model = model
+                st.success("✅ Whisper model loaded successfully!")
+            else:
+                st.error(f"❌ {error}")
     
-    # Voice recording section
-    st.markdown("### 🎤 Record Your Transaction")
+    if st.button("Initialize LLM"):
+        with st.spinner("Initializing LLM..."):
+            llm, error = initialize_rag_system()
+            if llm:
+                st.session_state.rag_llm = llm
+                st.success("✅ LLM initialized successfully!")
+            else:
+                st.error(f"❌ {error}")
+
+# Main content area
+st.markdown("### 🎤 Record Your Transaction")
+
+# Check if models are loaded
+models_ready = st.session_state.whisper_model is not None and st.session_state.rag_llm is not None
+if not models_ready:
+    st.warning("⚠️ Please load the Whisper model and initialize the LLM from the sidebar before proceeding.")
+
+# Voice recording section - only enable if models are loaded
+audio_recorder_disabled = not models_ready
+audio_bytes = st.audio_recorder(
+    text="Click to record", 
+    recording_color="#e8b62c", 
+    neutral_color="#6aa36f" if not audio_recorder_disabled else "#cccccc", 
+    stop_recording_text="Click to stop recording",
+    disabled=audio_recorder_disabled
+)
+
+if audio_bytes and models_ready:
+    st.markdown("**🎵 Audio Preview:**")
+    st.audio(audio_bytes, format="audio/wav")
     
-    # Use Streamlit's audio recorder
-    audio_bytes = st.audio_recorder(text="Click to record", 
-                                   recording_color="#e8b62c", 
-                                   neutral_color="#6aa36f", 
-                                   stop_recording_text="Click to stop recording")
-    
-    if audio_bytes:
-        st.markdown("**🎵 Audio Preview:**")
-        st.audio(audio_bytes, format="audio/wav")
-        
-        if st.button('🎤 Transcribe Audio'):
-            try:
-                with st.spinner("⏳ Transcribing audio... Please wait."):
-                    # Save audio bytes to temporary file
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                        tmp_file.write(audio_bytes)
-                        tmp_file_path = tmp_file.name
-                    
-                    # Transcribe using Whisper
-                    result = whisper_model.transcribe(tmp_file_path)
-                    transcription = result.get("text", "")
+    if st.button('🎤 Transcribe Audio'):
+        try:
+            with st.spinner("⏳ Transcribing audio... Please wait."):
+                # Save audio bytes to temporary file
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+                    tmp_file.write(audio_bytes)
+                    tmp_file_path = tmp_file.name
                 
-                    # Clean up temp file
-                    os.unlink(tmp_file_path)
-                
-                if not transcription:
-                    st.error(" No transcription output. Please check your audio recording.")
-                    return
-                
+                # Transcribe using Whisper
+                result = st.session_state.whisper_model.transcribe(tmp_file_path)
+                transcription = result.get("text", "")
+            
+                # Clean up temp file
+                os.unlink(tmp_file_path)
+            
+            if not transcription:
+                st.error("❌ No transcription output. Please check your audio recording.")
+            else:
                 # Store transcription in session state
                 st.session_state.transcription = transcription
+                st.success("✅ Transcription successful!")
                 
-            except Exception as e:
-                st.error(f" An error occurred: {str(e)}")
-    
-    # If transcription exists, show editable text area
-    if 'transcription' in st.session_state:
-        st.markdown("### ✏️ Edit Transcription Before Processing")
-        edited_transcription = st.text_area("", st.session_state.transcription, height=200)
-        
-        if st.button(' Process Transaction Details'):
-            with st.spinner("🤖 Processing transaction details..."):
-                processed_result = process_transaction_message(edited_transcription, rag_llm)
-                if processed_result:
-                    st.markdown("###  Extracted Transaction Details")
-                    st.code(processed_result, language="json")
-                else:
-                    st.error(" Failed to process transaction details.")
+        except Exception as e:
+            st.error(f"❌ An error occurred: {str(e)}")
 
-if __name__ == "__main__":
-    main()
+# If transcription exists, show editable text area
+if 'transcription' in st.session_state:
+    st.markdown("### ✏️ Edit Transcription Before Processing")
+    edited_transcription = st.text_area("", st.session_state.transcription, height=200)
+    
+    if st.button('💼 Process Transaction Details'):
+        with st.spinner("🤖 Processing transaction details..."):
+            processed_result = process_transaction_message(edited_transcription, st.session_state.rag_llm)
+            if processed_result:
+                st.markdown("### 📊 Extracted Transaction Details")
+                st.code(processed_result, language="json")
+            else:
+                st.error("❌ Failed to process transaction details.")
