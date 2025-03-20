@@ -2,11 +2,11 @@ import streamlit as st
 import torch
 import os
 import whisper
-import time
 import numpy as np
 import av
+import wave
 import asyncio
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorFactory
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from langchain_groq import ChatGroq
 
 # Set environment variables
@@ -15,7 +15,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # API Key and Model Config
-GROQ_API_KEY = "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"  # Load API key from environment
+GROQ_API_KEY = "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"
 DEFAULT_MODEL = "llama3-70b-8192"
 DEFAULT_TEMPERATURE = 0.5
 DEFAULT_MAX_TOKENS = 1024
@@ -50,20 +50,22 @@ def initialize_rag_system():
 # Process Transaction Message
 def process_transaction_message(message, llm):
     if llm is None:
-        return "Error: RAG system is not initialized."
+        return {"error": "RAG system is not initialized."}
     
     system_prompt = (
-        "Your input is a transaction message extracted from voice. Extract structured details like Amount, Transaction Type, Bank Name, Card Type, Paid to whom, Merchant, Transaction Mode, Transaction Date, Reference Number, and Tag."
-        "Tag means the category of spending (e.g., if Amazon, then shopping; if Zomato, then eating)."
-        "Just return JSON output, no additional text. If there is no valid data, return 'null'."
-        "Assume cash payment if mode is not mentioned. Set missing fields to null."
-        "Example 1: 'today I spent 500 at Domino’s' should be handled correctly."
-        "For multiple items with multiple prices, return a list of JSON objects."
+        "Extract structured details from this transaction message as JSON."
+        " Fields: Amount, Transaction Type, Bank Name, Card Type, Paid To, Merchant, Transaction Mode,"
+        " Transaction Date, Reference Number, and Tag (spending category)."
+        " If data is missing, set it to null. Assume cash if mode is not mentioned."
+        " Just return JSON, no extra text."
     )
     
     input_prompt = f"{system_prompt}\nMessage: {message}"
     response = llm.invoke(input_prompt)
-    return response.content if hasattr(response, 'content') else response
+    try:
+        return response.content if hasattr(response, 'content') else response
+    except Exception as e:
+        return {"error": str(e)}
 
 # Streamlit UI
 st.title("Voice-Based Transaction Analyzer")
@@ -83,13 +85,16 @@ if webrtc_ctx and webrtc_ctx.audio_receiver:
     if st.button("Process Recording"):
         st.write("Processing Audio...")
         
-        # Convert audio data to numpy array
-        audio_data = np.concatenate([frame.to_ndarray() for frame in audio_frames], axis=0)
+        # Convert audio frames to raw PCM data
+        pcm_audio = b"".join(frame.to_ndarray(format="s16").tobytes() for frame in audio_frames)
         
-        # Save as WAV file for Whisper
+        # Save as WAV file
         temp_file_path = "temp_audio.wav"
-        with open(temp_file_path, "wb") as f:
-            f.write(audio_data.tobytes())
+        with wave.open(temp_file_path, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)  # 16-bit audio
+            wf.setframerate(16000)  # Common speech rate
+            wf.writeframes(pcm_audio)
         
         whisper_model = load_whisper_model()
         if whisper_model:
