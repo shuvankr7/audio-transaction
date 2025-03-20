@@ -4,46 +4,56 @@ import av
 import numpy as np
 import soundfile as sf
 import os
+import time
 
 # Title
-st.title("🎙️ Live Voice Recorder")
+st.title("🎙️ Live Voice Recorder with Streamlit")
 
-# Function to process audio frames
-def audio_callback(frame: av.AudioFrame) -> av.AudioFrame:
-    audio = frame.to_ndarray()
-    audio_data.append(audio)
-    return frame
+# Directory to save audio files
+SAVE_DIR = "recorded_audio"
+os.makedirs(SAVE_DIR, exist_ok=True)
 
-# Storage for audio data
-audio_data = []
+# Define callback class for audio recording
+class AudioRecorder:
+    def __init__(self):
+        self.audio_frames = []
 
-# Streamlit WebRTC streamer for audio recording
+    def recv(self, frame):
+        # Convert WebRTC audio frame to numpy array
+        audio = frame.to_ndarray()
+        self.audio_frames.append(audio)
+        return frame
+
+# Initialize audio recorder
+audio_recorder = AudioRecorder()
+
+# Streamlit WebRTC component
 webrtc_ctx = webrtc_streamer(
-    key="record_audio",
+    key="audio_recorder",
     mode=WebRtcMode.SENDRECV,
     media_stream_constraints={"video": False, "audio": True},
     audio_receiver_size=1024,
     rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-    async_processing=True,
+    async_processing=True
 )
 
-# Save and Download
-if st.button("Stop and Save Recording"):
-    if len(audio_data) > 0:
-        # Convert recorded data to a NumPy array
-        recorded_audio = np.concatenate(audio_data, axis=0)
+# Check if recording is active
+if webrtc_ctx.state.playing:
+    st.write("🎤 Recording... Speak into your microphone!")
 
-        # Save as a WAV file
-        output_file = "recorded_audio.wav"
-        sf.write(output_file, recorded_audio, samplerate=48000)
-
-        # Provide download link
-        with open(output_file, "rb") as f:
-            st.download_button("Download Recording", f, file_name="recorded_audio.wav", mime="audio/wav")
-
-        # Clean up the file
-        os.remove(output_file)
-        st.success("Recording saved and ready for download!")
-    else:
-        st.error("No audio recorded yet. Please try again.")
+    # Save recorded audio when recording stops
+    if st.button("⏹ Stop & Save Recording"):
+        if len(audio_recorder.audio_frames) > 0:
+            # Convert recorded frames to numpy array
+            audio_data = np.concatenate(audio_recorder.audio_frames, axis=0)
+            
+            # Define audio file path
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            file_path = os.path.join(SAVE_DIR, f"recording_{timestamp}.wav")
+            
+            # Save the recorded audio
+            sf.write(file_path, audio_data, samplerate=48000)
+            st.success(f"✅ Recording saved: `{file_path}`")
+        else:
+            st.error("⚠️ No audio recorded!")
 
