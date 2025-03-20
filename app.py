@@ -2,12 +2,10 @@ import streamlit as st
 import torch
 import os
 import whisper
-import numpy as np
-import av
 import wave
-import asyncio
-from streamlit_webrtc import webrtc_streamer, WebRtcMode
+import time
 from langchain_groq import ChatGroq
+from streamlit_mic_recorder import mic_recorder
 
 # Set environment variables
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
@@ -71,45 +69,27 @@ def process_transaction_message(message, llm):
 st.title("Voice-Based Transaction Analyzer")
 st.sidebar.header("Settings")
 
-# WebRTC Audio Capture
-webrtc_ctx = webrtc_streamer(
-    key="audio",
-    mode=WebRtcMode.SENDRECV,
-    media_stream_constraints={"video": False, "audio": True},
-)
+# Browser Mic Audio Capture
+audio_bytes = mic_recorder(start_prompt="Start Recording", stop_prompt="Stop Recording", key="mic")
 
-if webrtc_ctx and webrtc_ctx.audio_receiver:
-    st.write("Listening... Speak now!")
+if audio_bytes:
+    st.success("Recording complete! Processing audio...")
+    temp_file_path = "temp_audio.wav"
     
-    # Process Recording
-    if st.button("Process Recording"):
-        st.write("Processing Audio...")
+    with open(temp_file_path, "wb") as f:
+        f.write(audio_bytes)
+    
+    whisper_model = load_whisper_model()
+    if whisper_model:
+        result = whisper_model.transcribe(temp_file_path)
+        transcription = result.get("text", "").strip()
         
-        # Convert audio frames to WAV format
-        temp_file_path = "temp_audio.wav"
-        try:
-            with wave.open(temp_file_path, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)  # 16-bit audio
-                wf.setframerate(16000)  # Common speech rate
-                
-                for frame in webrtc_ctx.audio_receiver.get_frames():
-                    audio_data = frame.to_ndarray(format="s16").tobytes()
-                    wf.writeframes(audio_data)
-            
-            whisper_model = load_whisper_model()
-            if whisper_model:
-                result = whisper_model.transcribe(temp_file_path)
-                transcription = result.get("text", "").strip()
-                
-                if transcription:
-                    st.session_state.transcription = transcription
-                else:
-                    st.error("No transcription output.")
-            else:
-                st.error("Whisper model failed to load.")
-        except Exception as e:
-            st.error(f"Error processing audio: {e}")
+        if transcription:
+            st.session_state.transcription = transcription
+        else:
+            st.error("No transcription output.")
+    else:
+        st.error("Whisper model failed to load.")
 
 # Display transcription and allow edits
 if "transcription" in st.session_state:
