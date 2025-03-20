@@ -61,41 +61,31 @@ def process_transaction_message(message, llm):
     response = llm.invoke(input_prompt)
     return response.content if hasattr(response, 'content') else response
 
-# Audio Processor to handle WebRTC audio input
-class AudioProcessor(AudioProcessorFactory):
-    def __init__(self):
-        self.audio_data = []
-    
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        raw_audio = frame.to_ndarray()
-        self.audio_data.append(raw_audio)
-        return frame
-
 # Streamlit UI
 st.title("Voice-Based Transaction Analyzer")
 st.sidebar.header("Settings")
 
-# Initialize WebRTC
+# WebRTC Audio Capture
 webrtc_ctx = webrtc_streamer(
     key="audio",
     mode=WebRtcMode.SENDRECV,
-    audio_processor_factory=AudioProcessor,
     media_stream_constraints={"video": False, "audio": True},
 )
 
-if webrtc_ctx.audio_processor:
+if webrtc_ctx.audio_receiver:
     st.write("Listening... Speak now!")
-    audio_processor = webrtc_ctx.audio_processor
+    audio_frames = webrtc_ctx.audio_receiver.get_frames()
     
     if st.button("Process Recording"):
         st.write("Processing Audio...")
         
         # Convert audio data to numpy array
-        audio_data = np.concatenate(audio_processor.audio_data, axis=0)
+        audio_data = np.concatenate([frame.to_ndarray() for frame in audio_frames], axis=0)
         
         # Save as WAV file for Whisper
         temp_file_path = "temp_audio.wav"
-        av.audio.frame.AudioFrame.from_ndarray(audio_data).to_ndarray()
+        with open(temp_file_path, "wb") as f:
+            f.write(audio_data.tobytes())
         
         whisper_model = load_whisper_model()
         if whisper_model:
