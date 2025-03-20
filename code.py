@@ -3,7 +3,7 @@ import tempfile
 import os
 import numpy as np
 import time
-
+import streamlit-webrtc
 # Make sure set_page_config is the first Streamlit command
 
 # Set environment variables
