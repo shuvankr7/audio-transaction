@@ -48,6 +48,10 @@
 # if os.path.exists("recorded_audio.wav"):
 #     st.audio("recorded_audio.wav", format="audio/wav")
 
+
+
+    
+                       
 import streamlit as st
 import pyaudio
 import wave
@@ -105,19 +109,22 @@ def main():
     
     # Record button
     if st.button("Start Recording"):
-        with st.spinner("Recording audio..."):
-            audio_file = record_audio(duration)
-        
-        st.success("Recording completed!")
-        
-        # Download button
-        with open(audio_file, 'rb') as file:
-            st.download_button(
-                label="Download Recording",
-                data=file,
-                file_name=OUTPUT_FILENAME,
-                mime="audio/wav"
-            )
+        try:
+            with st.spinner("Recording audio..."):
+                audio_file = record_audio(duration)
+            
+            st.success("Recording completed!")
+            
+            # Download button
+            with open(audio_file, 'rb') as file:
+                st.download_button(
+                    label="Download Recording",
+                    data=file,
+                    file_name=OUTPUT_FILENAME,
+                    mime="audio/wav"
+                )
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
     
     # Instructions
     st.write("""
