@@ -3,3 +3,4 @@ streamlit-webrtc
 av
 numpy
 soundfile
+sounddevice
