@@ -159,7 +159,6 @@ def get_available_devices():
     return input_devices, devices
 
 def main():
-    st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
     
     st.markdown("<h1 style='text-align: center;'>🎧 Audio Transaction Processor</h1>", unsafe_allow_html=True)
     st.markdown("---")
