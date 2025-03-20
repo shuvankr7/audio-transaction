@@ -5,3 +5,4 @@ scipy
 wave
 langchain_groq
 openai-whisper
+torch
