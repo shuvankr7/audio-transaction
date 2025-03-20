@@ -1,0 +1,5 @@
+streamlit
+transformers
+torch
+torchaudio
+langchain_groq
