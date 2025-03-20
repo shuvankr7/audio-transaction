@@ -1,4 +1,3 @@
-# Import required libraries first
 import streamlit as st
 import tempfile
 import os
@@ -71,6 +70,68 @@ def init_session_state():
         st.session_state.whisper_model = None
     if 'rag_llm' not in st.session_state:
         st.session_state.rag_llm = None
+    if 'audio_file' not in st.session_state:
+        st.session_state.audio_file = None
+
+# Import webrtc-related components
+def setup_audio_recorder():
+    try:
+        from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
+        import av
+        
+        # Use session state to store audio frames
+        if 'audio_frames' not in st.session_state:
+            st.session_state.audio_frames = []
+        
+        def video_frame_callback(frame):
+            # Return unchanged video frame
+            return frame
+        
+        def audio_frame_callback(frame):
+            # Store audio frames in session state
+            if frame is not None:
+                sound = frame.to_ndarray()
+                st.session_state.audio_frames.append(sound)
+            return frame
+        
+        # Setup webrtc with audio only
+        ctx = webrtc_streamer(
+            key="voice-recorder",
+            mode=WebRtcMode.SENDRECV,
+            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+            media_stream_constraints={"video": False, "audio": True},
+            video_frame_callback=video_frame_callback,
+            audio_frame_callback=audio_frame_callback,
+            async_processing=True,
+        )
+        
+        return ctx
+    except ImportError:
+        st.error("❌ streamlit-webrtc not installed. Please install with 'pip install streamlit-webrtc'")
+        return None
+
+def save_audio_frames_to_file():
+    """Save collected audio frames to a WAV file"""
+    if 'audio_frames' not in st.session_state or not st.session_state.audio_frames:
+        return None
+    
+    try:
+        import soundfile as sf
+        import numpy as np
+        
+        # Concatenate all audio frames
+        audio_data = np.concatenate(st.session_state.audio_frames, axis=0)
+        
+        # Create temporary file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+        
+        # Save to WAV
+        sf.write(temp_file.name, audio_data, 48000)  # Most webrtc audio is 48kHz
+        
+        return temp_file.name
+    except Exception as e:
+        st.error(f"❌ Error saving audio: {str(e)}")
+        return None
 
 # Initialize session state
 init_session_state()
@@ -83,7 +144,7 @@ st.markdown("---")
 with st.sidebar:
     st.header("Model Configuration")
     
-    if st.button("Load Whisper Model"):
+    if st.button("Load Whisper Model", key="load_whisper"):
         with st.spinner("Loading Whisper model..."):
             model, error = load_whisper_model()
             if model:
@@ -92,7 +153,7 @@ with st.sidebar:
             else:
                 st.error(f"❌ {error}")
     
-    if st.button("Initialize LLM"):
+    if st.button("Initialize LLM", key="init_llm"):
         with st.spinner("Initializing LLM..."):
             llm, error = initialize_rag_system()
             if llm:
@@ -109,34 +170,35 @@ models_ready = st.session_state.whisper_model is not None and st.session_state.r
 if not models_ready:
     st.warning("⚠️ Please load the Whisper model and initialize the LLM from the sidebar before proceeding.")
 
-# Voice recording section - only enable if models are loaded
-audio_recorder_disabled = not models_ready
-audio_bytes = st.audio_recorder(
-    text="Click to record", 
-    recording_color="#e8b62c", 
-    neutral_color="#6aa36f" if not audio_recorder_disabled else "#cccccc", 
-    stop_recording_text="Click to stop recording",
-    disabled=audio_recorder_disabled
-)
+# Voice recording section with webrtc
+st.markdown("Click the 'START' button below to begin recording your transaction:")
 
-if audio_bytes and models_ready:
-    st.markdown("**🎵 Audio Preview:**")
-    st.audio(audio_bytes, format="audio/wav")
+# Get the webrtc context
+webrtc_ctx = setup_audio_recorder()
+
+# Add a save button below the webrtc component
+if webrtc_ctx is not None:
+    if webrtc_ctx.state.playing and len(st.session_state.get('audio_frames', [])) > 0:
+        st.info("🔴 Recording in progress... Speak your transaction details and then click 'Stop' followed by 'Save Recording'")
     
-    if st.button('🎤 Transcribe Audio'):
+    if not webrtc_ctx.state.playing and len(st.session_state.get('audio_frames', [])) > 0:
+        if st.button("Save Recording", key="save_recording"):
+            with st.spinner("Saving audio..."):
+                audio_file = save_audio_frames_to_file()
+                if audio_file:
+                    st.session_state.audio_file = audio_file
+                    st.success("✅ Recording saved successfully!")
+
+# If audio is saved, show transcribe button
+if 'audio_file' in st.session_state and st.session_state.audio_file and models_ready:
+    st.markdown("**🎵 Audio recorded successfully!**")
+    
+    if st.button('🎤 Transcribe Audio', key="transcribe_audio"):
         try:
             with st.spinner("⏳ Transcribing audio... Please wait."):
-                # Save audio bytes to temporary file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                    tmp_file.write(audio_bytes)
-                    tmp_file_path = tmp_file.name
-                
                 # Transcribe using Whisper
-                result = st.session_state.whisper_model.transcribe(tmp_file_path)
+                result = st.session_state.whisper_model.transcribe(st.session_state.audio_file)
                 transcription = result.get("text", "")
-            
-                # Clean up temp file
-                os.unlink(tmp_file_path)
             
             if not transcription:
                 st.error("❌ No transcription output. Please check your audio recording.")
@@ -146,14 +208,14 @@ if audio_bytes and models_ready:
                 st.success("✅ Transcription successful!")
                 
         except Exception as e:
-            st.error(f"❌ An error occurred: {str(e)}")
+            st.error(f"❌ An error occurred during transcription: {str(e)}")
 
 # If transcription exists, show editable text area
 if 'transcription' in st.session_state:
     st.markdown("### ✏️ Edit Transcription Before Processing")
     edited_transcription = st.text_area("", st.session_state.transcription, height=200)
     
-    if st.button('💼 Process Transaction Details'):
+    if st.button('💼 Process Transaction Details', key="process_transaction"):
         with st.spinner("🤖 Processing transaction details..."):
             processed_result = process_transaction_message(edited_transcription, st.session_state.rag_llm)
             if processed_result:
