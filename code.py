@@ -61,7 +61,6 @@ import io
 from langchain_groq import ChatGroq
 import time
 
-st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
 
 # Set environment variables before imports
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
