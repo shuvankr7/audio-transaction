@@ -6,4 +6,5 @@ soundfile
 sounddevice
 wavio
 openai-whisper
+pyaudio
 
