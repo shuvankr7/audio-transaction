@@ -70,15 +70,24 @@ st.title("Voice-Based Transaction Analyzer")
 st.sidebar.header("Settings")
 
 # Browser Mic Audio Capture
+# Browser Mic Audio Capture
 audio_bytes = mic_recorder(start_prompt="Start Recording", stop_prompt="Stop Recording", key="mic")
 
 if audio_bytes:
     st.success("Recording complete! Processing audio...")
+
     temp_file_path = "temp_audio.wav"
-    
-    with open(temp_file_path, "wb") as f:
-        f.write(audio_bytes)
-    
+
+    # Ensure it's bytes before writing
+    if isinstance(audio_bytes, dict) and "bytes" in audio_bytes:
+        audio_bytes = audio_bytes["bytes"]  # Extract actual audio bytes
+
+    if isinstance(audio_bytes, bytes):
+        with open(temp_file_path, "wb") as f:
+            f.write(audio_bytes)
+    else:
+        st.error("Audio recording failed. No valid audio data received.")
+
     whisper_model = load_whisper_model()
     if whisper_model:
         result = whisper_model.transcribe(temp_file_path)
@@ -90,6 +99,8 @@ if audio_bytes:
             st.error("No transcription output.")
     else:
         st.error("Whisper model failed to load.")
+
+
 
 # Display transcription and allow edits
 if "transcription" in st.session_state:
