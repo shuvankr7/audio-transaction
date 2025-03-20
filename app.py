@@ -13,7 +13,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # API Key and Model Config
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY ="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"
 DEFAULT_MODEL = "llama3-70b-8192"
 DEFAULT_TEMPERATURE = 0.5
 DEFAULT_MAX_TOKENS = 1024
