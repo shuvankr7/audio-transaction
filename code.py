@@ -51,10 +51,12 @@
 
 
     
-import streamlit as st  # ✅ First import and set config
+import streamlit as st
 
-# ✅ Move this to the very first line, before any UI-related code
-st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")                     
+# ✅ Must be the first Streamlit command before any UI elements or functions
+st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
+
+# Now import other necessary libraries
 import torch
 import tempfile
 import os
@@ -63,7 +65,7 @@ import wave
 import io
 from langchain_groq import ChatGroq
 import time
-import sounddevice as sd
+
 st.title("Audio Device Check")
 
 try:
@@ -71,6 +73,7 @@ try:
     st.write("Detected audio devices:", devices)
 except Exception as e:
     st.error(f"Error accessing audio devices: {str(e)}")
+
 
 
 # Set environment variables before imports
