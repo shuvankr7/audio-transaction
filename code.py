@@ -62,7 +62,13 @@ import io
 from langchain_groq import ChatGroq
 import time
 import sounddevice as sd
-print(sd.query_devices())
+st.title("Audio Device Check")
+
+try:
+    devices = sd.query_devices()
+    st.write("Detected audio devices:", devices)
+except Exception as e:
+    st.error(f"Error accessing audio devices: {str(e)}")
 
 
 # Set environment variables before imports
