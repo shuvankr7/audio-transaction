@@ -5,5 +5,5 @@ scipy
 wave
 langchain_groq
 openai-whisper
-torch
+torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 streamlit-webrtc
