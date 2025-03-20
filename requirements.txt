@@ -6,3 +6,4 @@ wave
 langchain_groq
 openai-whisper
 torch
+streamlit_webrtc
