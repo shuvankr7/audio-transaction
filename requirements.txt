@@ -4,3 +4,8 @@ torch
 torchaudio
 langchain_groq
 whisper
+
+numpy
+
+openai-whisper>=20231117
+wave>=0.0.2
