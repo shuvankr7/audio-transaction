@@ -49,52 +49,47 @@
 #     st.audio("recorded_audio.wav", format="audio/wav")
 
 
+
+
 import streamlit as st
-import sounddevice as sd
-import numpy as np
-import wavio as wv
-import tempfile
+import streamlit_webrtc as webrtc
+import whisper
+import av  # Required by streamlit-webrtc
 
-def record_audio(duration, fs=44100):
-    """Records audio from the microphone."""
-    try:
-        recording = sd.rec(int(duration * fs), samplerate=fs, channels=1)
-        sd.wait()  # Wait until recording is finished
-        return recording, fs
-    except sd.PortAudioError as e:
-        st.error(f"PortAudio error: {e}")
-        return None, None
-
-def save_audio(recording, fs, filename):
-    """Saves the recorded audio to a WAV file."""
-    wv.write(filename, recording, fs)
+def transcribe_audio(audio_bytes):
+    """Transcribes audio using OpenAI Whisper."""
+    with open("temp_audio.wav", "wb") as f:
+        f.write(audio_bytes)
+    model = whisper.load_model("base")
+    result = model.transcribe("temp_audio.wav")
+    return result["text"]
 
 def main():
-    st.title("Audio Recorder")
+    st.title("Live Audio Recording and Transcription")
 
-    duration = st.slider("Recording Duration (seconds)", 1, 10, 5)
+    webrtc_streamer = webrtc.webrtc_streamer(
+        key="audio-recorder",
+        mode=webrtc.WebRtcMode.SENDRECV,
+        audio_receiver_size=1024,  # Adjust buffer size as needed
+        media_stream_constraints={"audio": True, "video": False},
+    )
 
-    if st.button("Start Recording"):
-        recording, fs = record_audio(duration)
-        if recording is not None:
-            st.success("Recording complete!")
+    if webrtc_streamer.audio_receiver:
+        try:
+            audio_frames = webrtc_streamer.audio_receiver.get_frames()
+            if audio_frames:
+                audio_bytes = b"".join([frame.to_ndarray().tobytes() for frame in audio_frames])
 
-            # Create a temporary file to save the audio
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
-                temp_filename = temp_audio.name
-                save_audio(recording, fs, temp_filename)
+                # Transcribe the recorded audio
+                transcription = transcribe_audio(audio_bytes)
+                st.write("Transcription:")
+                st.write(transcription)
 
-            # Display audio player and download button
-            st.audio(temp_filename, format="audio/wav")
-            with open(temp_filename, "rb") as f:
-                st.download_button(
-                    label="Download Recording",
-                    data=f,
-                    file_name="recorded_audio.wav",
-                    mime="audio/wav",
-                )
-        else:
-            st.error("Recording failed.")
+        except av.error.BlockingIOError:
+            # Handle potential blocking errors
+            pass
+        except Exception as e:
+             st.error(f"Error: {e}")
 
 if __name__ == "__main__":
     main()
