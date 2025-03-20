@@ -62,7 +62,6 @@ import io
 from langchain_groq import ChatGroq
 import time
 import sounddevice as sd
-st.title("Audio Device Check")
 
 try:
     devices = sd.query_devices()
