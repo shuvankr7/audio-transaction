@@ -1,9 +1,10 @@
 streamlit
-torch
-sounddevice
-wave
+soundfile
 numpy
-langchain
-langchain_groq
 whisper
+openai-whisper
+streamlit-webrtc
+torch
+langchain
+langchain-groq
 uvicorn
