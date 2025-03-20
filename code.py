@@ -61,7 +61,6 @@ import io
 from langchain_groq import ChatGroq
 import time
 
-
 # Set environment variables before imports
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -73,15 +72,15 @@ DEFAULT_MODEL = "llama3-70b-8192"
 DEFAULT_TEMPERATURE = 0.5
 DEFAULT_MAX_TOKENS = 1024
 
-# Load whisper model at startup
-import whisper  # Ensure this is placed at the top
-
+# Load whisper model at startup - important to import here, not at the top of the file
 @st.cache_resource
 def load_whisper_model():
     try:
-        return whisper.load_model("base")  # Explicitly load the model
+        # Import whisper inside the function to avoid circular imports
+        import whisper
+        return whisper.load_model("base")
     except ImportError:
-        st.error("OpenAI Whisper module not found. Install it using: pip install openai-whisper")
+        st.error("OpenAI Whisper module not found. Install it using: pip install git+https://github.com/openai/whisper.git")
         st.stop()
     except Exception as e:
         st.error(f"Error loading Whisper model: {str(e)}")
@@ -100,10 +99,7 @@ def initialize_rag_system():
         st.error(f"Error initializing RAG system: {str(e)}")
         return None
 
-# Load models on startup
-whisper_model = load_whisper_model()
-rag_llm = initialize_rag_system()
-
+# Record audio function
 def record_audio(duration=5, samplerate=44100, device=None):
     """Records audio from the user."""
     st.write("Recording... Speak now!")
@@ -148,8 +144,15 @@ def get_available_devices():
     return input_devices, devices
 
 def main():
+    st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
+    
     st.markdown("<h1 style='text-align: center;'>🎧 Audio Transaction Processor</h1>", unsafe_allow_html=True)
     st.markdown("---")
+    
+    # Load models on startup - moved inside main() to avoid circular imports
+    with st.spinner("Loading models..."):
+        whisper_model = load_whisper_model()
+        rag_llm = initialize_rag_system()
     
     tab1, tab2 = st.tabs(["Record Audio", "Upload Audio"])
     
