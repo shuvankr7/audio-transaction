@@ -9,4 +9,3 @@ langchain
 langchain-groq
 uvicorn
 streamlit-mic-recorder
-streamlit-audio-recorder
