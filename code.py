@@ -48,11 +48,9 @@
 # if os.path.exists("recorded_audio.wav"):
 #     st.audio("recorded_audio.wav", format="audio/wav")
 
-
 import streamlit as st
 import pyaudio
 import wave
-import numpy as np
 import os
 
 # Audio recording parameters
@@ -112,17 +110,14 @@ def main():
         
         st.success("Recording completed!")
         
-        # Display audio player
-        audio_bytes = open(audio_file, 'rb').read()
-        st.audio(audio_bytes, format='audio/wav')
-        
         # Download button
-        st.download_button(
-            label="Download Recording",
-            data=audio_bytes,
-            file_name=OUTPUT_FILENAME,
-            mime="audio/wav"
-        )
+        with open(audio_file, 'rb') as file:
+            st.download_button(
+                label="Download Recording",
+                data=file,
+                file_name=OUTPUT_FILENAME,
+                mime="audio/wav"
+            )
     
     # Instructions
     st.write("""
@@ -131,8 +126,7 @@ def main():
     2. Click 'Start Recording' to begin
     3. Speak into your microphone
     4. Wait for recording to complete
-    5. Listen to your recording using the audio player
-    6. Download the recording if desired
+    5. Download the recording
     """)
 
 if __name__ == "__main__":
