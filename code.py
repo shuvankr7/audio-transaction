@@ -51,9 +51,11 @@
 
 
     
-                       
+import streamlit as st  # ✅ First import and set config
+
+# ✅ Move this to the very first line, before any UI-related code
+st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")                     
 import torch
-import streamlit as st
 import tempfile
 import os
 import sounddevice as sd
@@ -62,6 +64,7 @@ import io
 from langchain_groq import ChatGroq
 import time
 import sounddevice as sd
+st.title("Audio Device Check")
 
 try:
     devices = sd.query_devices()
