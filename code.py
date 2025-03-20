@@ -53,88 +53,94 @@
     
                        
 import streamlit as st
-import pyaudio
-import wave
-import os
+import streamlit.components.v1 as components
 
-# Audio recording parameters
-CHUNK = 1024
-FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 44100
-OUTPUT_FILENAME = "recorded_audio.wav"
+# Streamlit app
+st.title("Live Audio Recorder (Browser-Based)")
 
-def record_audio(duration):
-    # Initialize PyAudio
-    p = pyaudio.PyAudio()
-    
-    # Open stream
-    stream = p.open(format=FORMAT,
-                   channels=CHANNELS,
-                   rate=RATE,
-                   input=True,
-                   frames_per_buffer=CHUNK)
-    
-    st.write("Recording...")
-    frames = []
-    
-    # Record for specified duration
-    for i in range(0, int(RATE / CHUNK * duration)):
-        data = stream.read(CHUNK)
-        frames.append(data)
-    
-    # Stop and close the stream
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-    
-    # Save the recorded audio
-    wf = wave.open(OUTPUT_FILENAME, 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(p.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(b''.join(frames))
-    wf.close()
-    
-    return OUTPUT_FILENAME
+# Recording duration input
+duration = st.slider("Select recording duration (seconds)", 
+                     min_value=1, 
+                     max_value=30, 
+                     value=5)
 
-def main():
-    st.title("Live Audio Recorder")
-    
-    # Recording duration input
-    duration = st.slider("Select recording duration (seconds)", 
-                        min_value=1, 
-                        max_value=30, 
-                        value=5)
-    
-    # Record button
-    if st.button("Start Recording"):
-        try:
-            with st.spinner("Recording audio..."):
-                audio_file = record_audio(duration)
-            
-            st.success("Recording completed!")
-            
-            # Download button
-            with open(audio_file, 'rb') as file:
-                st.download_button(
-                    label="Download Recording",
-                    data=file,
-                    file_name=OUTPUT_FILENAME,
-                    mime="audio/wav"
-                )
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
-    
-    # Instructions
-    st.write("""
-    Instructions:
-    1. Select desired recording duration using the slider
-    2. Click 'Start Recording' to begin
-    3. Speak into your microphone
-    4. Wait for recording to complete
-    5. Download the recording
-    """)
+# HTML and JavaScript code for audio recording
+audio_recorder_html = f"""
+<script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let recordingTimeout;
 
-if __name__ == "__main__":
-    main()
+    // Function to start recording
+    function startRecording() {{
+        if (isRecording) return;
+        
+        navigator.mediaDevices.getUserMedia({{ audio: true }})
+            .then(stream => {{
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = event => {{
+                    audioChunks.push(event.data);
+                }};
+                
+                mediaRecorder.onstop = () => {{
+                    const audioBlob = new Blob(audioChunks, {{ type: 'audio/wav' }});
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    // Create a download link
+                    const link = document.createElement('a');
+                    link.href = audioUrl;
+                    link.download = 'recorded_audio.wav';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Stop all tracks to release the microphone
+                    stream.getTracks().forEach(track => track.stop());
+                }};
+                
+                mediaRecorder.start();
+                isRecording = true;
+                document.getElementById('status').innerText = 'Recording...';
+                
+                // Stop recording after the specified duration
+                recordingTimeout = setTimeout(() => {{
+                    stopRecording();
+                }}, {duration * 1000});
+            }})
+            .catch(err => {{
+                document.getElementById('status').innerText = 'Error: ' + err.message;
+            }});
+    }}
+
+    // Function to stop recording
+    function stopRecording() {{
+        if (!isRecording) return;
+        
+        mediaRecorder.stop();
+        isRecording = false;
+        clearTimeout(recordingTimeout);
+        document.getElementById('status').innerText = 'Recording completed! File downloaded.';
+    }}
+</script>
+
+<button onclick="startRecording()">Start Recording</button>
+<p id="status">Click the button to start recording.</p>
+"""
+
+# Render the HTML/JS component
+if st.button("Show Recording Interface"):
+    components.html(audio_recorder_html, height=150)
+
+# Instructions
+st.write("""
+Instructions:
+1. Select desired recording duration using the slider.
+2. Click 'Show Recording Interface' to display the recording button.
+3. Click 'Start Recording' to begin.
+4. Speak into your microphone.
+5. Wait for the recording to complete (it will stop automatically after the selected duration).
+6. The recording will be downloaded automatically as 'recorded_audio.wav'.
+""")
