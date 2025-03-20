@@ -8,3 +8,4 @@ torch
 langchain
 langchain-groq
 uvicorn
+streamlit-mic-recorder
