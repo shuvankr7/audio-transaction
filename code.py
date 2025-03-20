@@ -1,52 +1,52 @@
-import streamlit as st
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
-import av
-import numpy as np
-import wave
-import os
+# import streamlit as st
+# from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+# import av
+# import numpy as np
+# import wave
+# import os
 
-# Title
-st.title("🎙 Live Audio Recorder")
+# # Title
+# st.title("🎙 Live Audio Recorder")
 
-# Custom Audio Processor Class
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self) -> None:
-        self.audio_frames = []
+# # Custom Audio Processor Class
+# class AudioProcessor(AudioProcessorBase):
+#     def __init__(self) -> None:
+#         self.audio_frames = []
 
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        audio_data = frame.to_ndarray()
-        self.audio_frames.append(audio_data)
-        return frame
+#     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+#         audio_data = frame.to_ndarray()
+#         self.audio_frames.append(audio_data)
+#         return frame
 
-# WebRTC Streamer
-webrtc_ctx = webrtc_streamer(
-    key="audio_recorder",
-    mode=WebRtcMode.SENDRECV,
-    media_stream_constraints={"video": False, "audio": True},
-    async_processing=True,
-    audio_processor_factory=AudioProcessor,
-)
+# # WebRTC Streamer
+# webrtc_ctx = webrtc_streamer(
+#     key="audio_recorder",
+#     mode=WebRtcMode.SENDRECV,
+#     media_stream_constraints={"video": False, "audio": True},
+#     async_processing=True,
+#     audio_processor_factory=AudioProcessor,
+# )
 
-# Stop & Save Button
-if st.button("Stop and Save Recording"):
-    if webrtc_ctx and webrtc_ctx.audio_processor:
-        audio_data = np.concatenate(webrtc_ctx.audio_processor.audio_frames, axis=0)
+# # Stop & Save Button
+# if st.button("Stop and Save Recording"):
+#     if webrtc_ctx and webrtc_ctx.audio_processor:
+#         audio_data = np.concatenate(webrtc_ctx.audio_processor.audio_frames, axis=0)
 
-        # Save as a WAV file
-        output_filename = "recorded_audio.wav"
-        with wave.open(output_filename, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)  # 16-bit PCM
-            wf.setframerate(44100)
-            wf.writeframes(audio_data.tobytes())
+#         # Save as a WAV file
+#         output_filename = "recorded_audio.wav"
+#         with wave.open(output_filename, "wb") as wf:
+#             wf.setnchannels(1)
+#             wf.setsampwidth(2)  # 16-bit PCM
+#             wf.setframerate(44100)
+#             wf.writeframes(audio_data.tobytes())
 
-        st.success(f"✅ Audio saved as {output_filename}")
-    else:
-        st.warning("⚠️ No audio recorded!")
+#         st.success(f"✅ Audio saved as {output_filename}")
+#     else:
+#         st.warning("⚠️ No audio recorded!")
 
-# Play the saved audio file if exists
-if os.path.exists("recorded_audio.wav"):
-    st.audio("recorded_audio.wav", format="audio/wav")
+# # Play the saved audio file if exists
+# if os.path.exists("recorded_audio.wav"):
+#     st.audio("recorded_audio.wav", format="audio/wav")
 
 
 
@@ -257,118 +257,118 @@ if os.path.exists("recorded_audio.wav"):
 
 
 
-# import streamlit as st
-# from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
-# import av
-# import numpy as np
-# import wave
-# import os
-# import torch
-# import tempfile
-# from langchain_groq import ChatGroq
+import streamlit as st
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
+import av
+import numpy as np
+import wave
+import os
+import torch
+import tempfile
+from langchain_groq import ChatGroq
 
-# # Set environment variables
-# os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
-# os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-# os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# Set environment variables
+os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# # Groq API Configuration
-# GROQ_API_KEY = "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"
-# DEFAULT_MODEL = "llama3-70b-8192"
-# DEFAULT_TEMPERATURE = 0.5
-# DEFAULT_MAX_TOKENS = 1024
+# Groq API Configuration
+GROQ_API_KEY = "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"
+DEFAULT_MODEL = "llama3-70b-8192"
+DEFAULT_TEMPERATURE = 0.5
+DEFAULT_MAX_TOKENS = 1024
 
-# # Load Whisper Model
-# @st.cache_resource
-# def load_whisper_model():
-#     import whisper
-#     return whisper.load_model("base")
+# Load Whisper Model
+@st.cache_resource
+def load_whisper_model():
+    import whisper
+    return whisper.load_model("base")
 
-# # Initialize RAG System
-# def initialize_rag_system():
-#     return ChatGroq(
-#         api_key=GROQ_API_KEY,
-#         model=DEFAULT_MODEL,
-#         temperature=DEFAULT_TEMPERATURE,
-#         max_tokens=DEFAULT_MAX_TOKENS
-#     )
+# Initialize RAG System
+def initialize_rag_system():
+    return ChatGroq(
+        api_key=GROQ_API_KEY,
+        model=DEFAULT_MODEL,
+        temperature=DEFAULT_TEMPERATURE,
+        max_tokens=DEFAULT_MAX_TOKENS
+    )
 
-# # Process Transaction Message with RAG
-# def process_transaction_message(message, llm):
-#     system_prompt = (
-#         "Your input is a transaction message extracted from voice. Extract structured details like "
-#         "Amount, Transaction Type, Bank Name, Card Type, Paid To, Merchant, Transaction Mode, Transaction Date, Reference Number, and Category Tag. "
-#         "Tag meaning which category of spending, if Amazon then shopping etc, if Zomato then food. "
-#         "If mode of payment is not mentioned, assume cash by default. "
-#         "If any field is missing, set it as null. "
-#         "Return only a JSON or a list of JSON objects. "
-#     )
-#     input_prompt = f"{system_prompt}\nMessage: {message}"
-#     response = llm.invoke(input_prompt)
-#     return response.content if hasattr(response, 'content') else response
+# Process Transaction Message with RAG
+def process_transaction_message(message, llm):
+    system_prompt = (
+        "Your input is a transaction message extracted from voice. Extract structured details like "
+        "Amount, Transaction Type, Bank Name, Card Type, Paid To, Merchant, Transaction Mode, Transaction Date, Reference Number, and Category Tag. "
+        "Tag meaning which category of spending, if Amazon then shopping etc, if Zomato then food. "
+        "If mode of payment is not mentioned, assume cash by default. "
+        "If any field is missing, set it as null. "
+        "Return only a JSON or a list of JSON objects. "
+    )
+    input_prompt = f"{system_prompt}\nMessage: {message}"
+    response = llm.invoke(input_prompt)
+    return response.content if hasattr(response, 'content') else response
 
-# # Custom Audio Processor
-# class AudioProcessor(AudioProcessorBase):
-#     def __init__(self) -> None:
-#         self.audio_frames = []
+# Custom Audio Processor
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self) -> None:
+        self.audio_frames = []
 
-#     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-#         audio_data = frame.to_ndarray()
-#         self.audio_frames.append(audio_data)
-#         return frame
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        audio_data = frame.to_ndarray()
+        self.audio_frames.append(audio_data)
+        return frame
 
-# # Streamlit App
-# st.title("🎙 Live Audio Transaction Processor")
+# Streamlit App
+st.title("🎙 Live Audio Transaction Processor")
 
-# # Initialize models
-# with st.spinner("Loading AI models..."):
-#     whisper_model = load_whisper_model()
-#     rag_llm = initialize_rag_system()
+# Initialize models
+with st.spinner("Loading AI models..."):
+    whisper_model = load_whisper_model()
+    rag_llm = initialize_rag_system()
 
-# # WebRTC Audio Recorder
-# webrtc_ctx = webrtc_streamer(
-#     key="audio_recorder",
-#     mode=WebRtcMode.SENDRECV,
-#     media_stream_constraints={"video": False, "audio": True},
-#     async_processing=True,
-#     audio_processor_factory=AudioProcessor,
-# )
+# WebRTC Audio Recorder
+webrtc_ctx = webrtc_streamer(
+    key="audio_recorder",
+    mode=WebRtcMode.SENDRECV,
+    media_stream_constraints={"video": False, "audio": True},
+    async_processing=True,
+    audio_processor_factory=AudioProcessor,
+)
 
-# # Stop & Process Button
-# if st.button("Stop & Process Audio"):
-#     if webrtc_ctx and webrtc_ctx.audio_processor:
-#         audio_data = np.concatenate(webrtc_ctx.audio_processor.audio_frames, axis=0)
+# Stop & Process Button
+if st.button("Stop & Process Audio"):
+    if webrtc_ctx and webrtc_ctx.audio_processor:
+        audio_data = np.concatenate(webrtc_ctx.audio_processor.audio_frames, axis=0)
         
-#         # Save recorded audio
-#         temp_audio_path = "recorded_audio.wav"
-#         with wave.open(temp_audio_path, "wb") as wf:
-#             wf.setnchannels(1)
-#             wf.setsampwidth(2)
-#             wf.setframerate(44100)
-#             wf.writeframes(audio_data.tobytes())
+        # Save recorded audio
+        temp_audio_path = "recorded_audio.wav"
+        with wave.open(temp_audio_path, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(44100)
+            wf.writeframes(audio_data.tobytes())
         
-#         st.success("✅ Audio saved! Transcribing...")
+        st.success("✅ Audio saved! Transcribing...")
         
-#         # Transcribe audio
-#         try:
-#             result = whisper_model.transcribe(temp_audio_path)
-#             transcription = result.get("text", "")
+        # Transcribe audio
+        try:
+            result = whisper_model.transcribe(temp_audio_path)
+            transcription = result.get("text", "")
             
-#             if transcription:
-#                 st.markdown("### ✏️ Transcription")
-#                 st.text_area("", transcription, height=150)
+            if transcription:
+                st.markdown("### ✏️ Transcription")
+                st.text_area("", transcription, height=150)
                 
-#                 # Process with RAG
-#                 with st.spinner("🤖 Extracting transaction details..."):
-#                     processed_result = process_transaction_message(transcription, rag_llm)
-#                     if processed_result:
-#                         st.markdown("### 📊 Extracted Transaction Details")
-#                         st.code(processed_result, language="json")
-#                     else:
-#                         st.error("❌ Failed to extract transaction details.")
-#             else:
-#                 st.error("❌ No transcription output. Please check your audio file.")
-#         except Exception as e:
-#             st.error(f"❌ Transcription failed: {str(e)}")
-#     else:
-#         st.warning("⚠️ No audio recorded!")
+                # Process with RAG
+                with st.spinner("🤖 Extracting transaction details..."):
+                    processed_result = process_transaction_message(transcription, rag_llm)
+                    if processed_result:
+                        st.markdown("### 📊 Extracted Transaction Details")
+                        st.code(processed_result, language="json")
+                    else:
+                        st.error("❌ Failed to extract transaction details.")
+            else:
+                st.error("❌ No transcription output. Please check your audio file.")
+        except Exception as e:
+            st.error(f"❌ Transcription failed: {str(e)}")
+    else:
+        st.warning("⚠️ No audio recorded!")
