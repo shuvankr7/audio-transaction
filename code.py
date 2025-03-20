@@ -259,7 +259,7 @@
 
 
 
-# ✅ Must be the first Streamlit command before any UI elements or functions
+import streamlit as st
 st.set_page_config(page_title="Audio Transaction Processor", page_icon="🎤", layout="wide")
 
 # Now import other necessary libraries
