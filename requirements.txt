@@ -1,10 +1,11 @@
-gradio
+streamlit
 torch
-transformers
 sounddevice
 wave
 numpy
+io
+tempfile
+os
 langchain
 langchain_groq
 whisper
-gunicorn 
