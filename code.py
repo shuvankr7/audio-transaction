@@ -60,6 +60,7 @@ import wave
 import io
 from langchain_groq import ChatGroq
 import time
+import torch
 
 # Set environment variables before imports
 os.environ["USER_AGENT"] = "RAG-Chat-Assistant/1.0"
