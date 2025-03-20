@@ -74,15 +74,14 @@ DEFAULT_TEMPERATURE = 0.5
 DEFAULT_MAX_TOKENS = 1024
 
 # Load whisper model at startup
+import whisper  # Ensure this is placed at the top
+
 @st.cache_resource
 def load_whisper_model():
     try:
-        # Use OpenAI's Whisper package correctly
-        
-        import whisper
-        return whisper.load_model("base")
+        return whisper.load_model("base")  # Explicitly load the model
     except ImportError:
-        st.error("OpenAI Whisper module not found. Please install with: pip install openai-whisper")
+        st.error("OpenAI Whisper module not found. Install it using: pip install openai-whisper")
         st.stop()
     except Exception as e:
         st.error(f"Error loading Whisper model: {str(e)}")
